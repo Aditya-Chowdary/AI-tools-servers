@@ -36,15 +36,15 @@ system_prompt = (
 
 MCP_SERVER_CONFIG = {
     "mcpServers": {
-        "Demo": {
-            "command": "/Users/adi/.local/bin/uv",
+        "DummyToolDemo": {  # IMPORTANT: This name must match FastMCP("...") in your server file
+            "command": "uv",  # Assumes 'uv' is in your system's PATH
             "args": [
                 "run",
                 "--with",
                 "mcp[cli]",
                 "mcp",
                 "run",
-                "/Users/adi/mcp-server-demo/main.py"
+                "./mcp servers/mcp_server1.py"  # Use the dynamic path to your server file
             ]
         }
     }

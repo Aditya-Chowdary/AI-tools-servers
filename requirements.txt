@@ -2,6 +2,7 @@
 # Web Framework and Server
 fastapi
 uvicorn
+uv
 websockets
 
 # LangChain and AI Model Integration
