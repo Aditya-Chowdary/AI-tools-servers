@@ -1,6 +1,5 @@
 # =================================================================
-# FINAL "ALL-IN-ONE" server.py
-# (Launches all tool servers automatically)
+# FINAL, DEPLOYMENT-READY server.py
 # =================================================================
 import os
 import json
@@ -13,38 +12,40 @@ import mcp_use
 from mcp_use import MCPAgent, MCPClient
 from dotenv import load_dotenv
 
-# --- SETUP ---
 load_dotenv()
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+NEWS_API_KEY = os.environ.get("NEWS_API_KEY") # Don't forget this for the news tool
 
 if not GROQ_API_KEY:
     raise ValueError("GROQ_API_KEY not found. Please set it in your .env file.")
 
 mcp_use.set_debug(True)
-system_prompt = "You are a helpful AI assistant. Use your available tools to answer user questions and complete tasks. Be concise and professional."
+system_prompt = (
+    "You are a helpful AI assistant named Vishesh. Use your available tools to answer user questions and complete tasks. "
+    "Be concise, professional, and friendly. If a user's request is ambiguous or missing information needed for a tool, "
+    "you MUST ask clarifying questions to get the required parameters. Do not try to guess."
+)
 
-# --- MCP SERVER CONFIGURATION (The "Automatic Startup" block) ---
-# We use the absolute path to the mcp command inside the virtual environment
-MCP_COMMAND = "/Users/adi/AI-tools-servers/.venv/bin/mcp"
+# --- MCP SERVER CONFIGURATION (Corrected for Deployment) ---
+# We list the server files. The system will find the 'mcp' command in its PATH.
 SERVER_FILES = [
     "freelance_server.py", "video_server.py", "support_server.py",
     "virtual_employee_server.py", "summarizer_server.py", "crm_server.py",
-    "forecasting_server.py", "inbox_server.py", "onboarding_server.py"
+    "forecasting_server.py", "inbox_server.py", "onboarding_server.py",
 ]
 
 MCP_SERVER_CONFIG = {
     "mcpServers": {
-        # Dynamically create the config for each server file
-        os.path.splitext(filename)[0]: { # e.g., "freelance_server"
-            "command": MCP_COMMAND,
+        os.path.splitext(filename)[0]: { 
+            "command": "mcp", 
             "args": ["run", f"./mcp_servers/{filename}"]
         } for filename in SERVER_FILES
     }
 }
 
-
-# --- CONNECTION MANAGER ---
+# --- All other code remains the same ---
 class ConnectionManager:
+    # ... (no changes needed here)
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
 
@@ -61,11 +62,9 @@ class ConnectionManager:
         if client_id in self.active_connections:
             await self.active_connections[client_id].send_text(message)
 
-# --- GLOBAL OBJECTS ---
 manager = ConnectionManager()
 agent: MCPAgent | None = None
 
-# --- LIFESPAN FUNCTION FOR AUTOMATIC STARTUP ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global agent
@@ -76,10 +75,7 @@ async def lifespan(app: FastAPI):
             api_key=GROQ_API_KEY,
             model="llama3-70b-8192",
         )
-        
-        # This will now use the config to launch all 9 servers in the background
         mcp_client = MCPClient(config=MCP_SERVER_CONFIG)
-        
         agent = MCPAgent(
             llm=llm,
             client=mcp_client,
@@ -87,23 +83,20 @@ async def lifespan(app: FastAPI):
             system_prompt=system_prompt
         )
         print("✅ Agent and all tool servers initialized successfully.")
-
     except Exception as e:
         print(f"❌ FATAL: Agent initialization failed: {e}")
         agent = None 
-    
     yield
     print("Server is shutting down.")
 
-# --- FASTAPI APPLICATION ---
 app = FastAPI(lifespan=lifespan)
 
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
+    # ... (no changes needed here)
     await manager.connect(websocket, client_id)
     welcome_payload = json.dumps({"type": "message", "data": "Connected to Vishesh Agent."})
     await manager.send_personal_message(welcome_payload, client_id)
-
     try:
         while True:
             user_message = await websocket.receive_text()
@@ -114,10 +107,5 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             else:
                 error_payload = json.dumps({"type": "error", "data": "Agent not available."})
                 await manager.send_personal_message(error_payload, client_id)
-
     except WebSocketDisconnect:
         manager.disconnect(client_id)
-
-# --- TO RUN THE SERVER ---
-if __name__ == "__main__":
-    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
