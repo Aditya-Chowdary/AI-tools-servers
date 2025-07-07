@@ -7,11 +7,11 @@ websockets
 
 # LangChain and AI Model Integration
 langchain-openai
-mcp-use
+# THIS IS THE CRUCIAL LINE
+mcp-use[cli]
 
 # Environment Variable Management
 python-dotenv
 
-# The Groq SDK is often a useful dependency if you interact directly,
-# although langchain-openai handles the connection here. It's good to include.
+# The Groq SDK is often a useful dependency
 groq
