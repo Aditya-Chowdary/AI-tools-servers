@@ -1,6 +1,4 @@
-# =================================================================
-# FINAL, DEPLOYMENT-READY server.py
-# =================================================================
+
 import os
 import json
 import uvicorn
@@ -30,8 +28,8 @@ system_prompt = (
 # We list the server files. The system will find the 'mcp' command in its PATH.
 SERVER_FILES = [
     "freelance_server.py", "video_server.py", "support_server.py",
-    # "virtual_employee_server.py", "summarizer_server.py", "crm_server.py",
-    # "forecasting_server.py", "inbox_server.py", "onboarding_server.py",
+    "virtual_employee_server.py", "summarizer_server.py", "crm_server.py",
+    "forecasting_server.py", "inbox_server.py", "onboarding_server.py",
 ]
 
 MCP_SERVER_CONFIG = {
