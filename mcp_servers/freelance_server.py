@@ -1,19 +1,16 @@
-from mcp.server.fastmcp import FastMCP
-from dataclasses import dataclass
+from pydantic import BaseModel, Field
+import os
+from dotenv import load_dotenv
+from langchain_openai import ChatOpenAI
 
-mcp = FastMCP("FreelanceMarketplaceServer")
+load_dotenv()
+llm = ChatOpenAI(base_url="https://api.groq.com/openai/v1", api_key=os.environ.get("GROQ_API_KEY"), model="llama3-8b-8192")
 
-@dataclass
-class ProjectProposal:
+class ProjectProposal(BaseModel):
     proposal_text: str
 
-@mcp.tool()
 def generate_project_proposal(client_name: str, project_description: str) -> ProjectProposal:
-    """Generates a professional project proposal for a client based on a project description."""
-    proposal = (
-        f"**Project Proposal for {client_name}**\n\n"
-        f"**1. Project Overview**\nThis project aims to address the following: {project_description}\n\n"
-        f"**2. Scope of Work**\n- Initial consultation and requirement gathering.\n- Development and implementation.\n- Testing and quality assurance.\n- Final delivery and handover.\n\n"
-        f"**3. Next Steps**\nPlease review this proposal. We look forward to partnering with you."
-    )
-    return ProjectProposal(proposal_text=proposal)
+    """Generates a professional project proposal..."""
+    prompt = f"You are a professional business consultant...\n**Client Name:** {client_name}\n**Project Description:** {project_description}\n..."
+    response = llm.invoke(prompt)
+    return ProjectProposal(proposal_text=response.content)

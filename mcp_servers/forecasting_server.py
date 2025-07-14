@@ -1,46 +1,54 @@
-# mcp_servers/forecasting_server.py
-
-# Make sure all these imports are present
+from typing import List, Union
 from mcp.server.fastmcp import FastMCP
-from dataclasses import dataclass
-from typing import List
-import random
-import datetime
-from calendar import month_name
+from pydantic import BaseModel, Field
+from dotenv import load_dotenv
+import numpy as np
+# Import the ARIMA model
+from statsmodels.tsa.arima.model import ARIMA
 
-# Make sure this class is defined correctly
-@dataclass
-class ForecastResult:
-    product_category: str
-    labels: List[str]
-    data: List[int]
+load_dotenv()
+app = FastMCP("ForecastingServer")
 
-# Make sure this line is correct and the name is in quotes
-mcp = FastMCP("FinancialForecastingServer")
+class ForecastResult(BaseModel):
+    tool_name: str = Field(default="ForecastResult", init=False)
+    data_name: str = Field(description="The name for the data series being forecasted.")
+    labels: List[str] = Field(description="The labels for the x-axis.")
+    historical_data: List[Union[int, float, None]] = Field(description="The historical data points.")
+    forecast_data: List[Union[int, float, None]] = Field(description="The forecasted data points, padded with nulls.")
 
-@mcp.tool()
-def forecast_sales(product_category: str, months_to_forecast: int = 6) -> ForecastResult:
+@app.tool()
+def forecast_data(historical_data: List[float], data_name: str, forecast_periods: int = 4) -> ForecastResult:
     """
-    Generates a dummy sales forecast for a given product category over a specified number of future months.
-    In a real-world scenario, this would involve a machine learning model or a complex statistical analysis.
-    This tool returns a structured object containing month labels and corresponding sales data.
+    Generates a realistic forecast using an ARIMA time-series model based on historical data.
+    'historical_data' should be a list of numbers, e.g., [110, 125, 150, 142, 168, 180].
+    'data_name' is the name for the data, e.g., 'New User Signups'.
+    'forecast_periods' is the number of future time periods to predict.
     """
-    labels = []
-    data = []
+    if len(historical_data) < 5: 
+        return ForecastResult(data_name=f"Error for '{data_name}'", labels=["Error"], historical_data=[], forecast_data=[])
     
-    current_sales = random.randint(10000, 25000)
-    today = datetime.date.today()
+    try:
+        model = ARIMA(historical_data, order=(2, 1, 1))
+        model_fit = model.fit()
+        
+       
+        forecast = model_fit.forecast(steps=forecast_periods)
+        
+     
+        forecasted_points = np.maximum(forecast, 0).tolist() # Ensure no negative predictions
+        forecasted_points = [round(p, 2) for p in forecasted_points]
+        
+        last_historical_value = historical_data[-1]
+        forecast_chart_data = [None] * (len(historical_data) - 1) + [last_historical_value] + forecasted_points
 
-    for i in range(months_to_forecast):
-        future_month_num = (today.month + i) % 12 + 1
-        future_year = today.year + (today.month + i) // 12
-        labels.append(f"{month_name[future_month_num]} {future_year}")
-        growth_factor = 1 + random.uniform(0.02, 0.15)
-        current_sales = int(current_sales * growth_factor)
-        data.append(current_sales)
-
-    return ForecastResult(
-        product_category=product_category,
-        labels=labels,
-        data=data
-    )
+        labels = [f"P{i+1}" for i in range(len(historical_data) + forecast_periods)]
+        
+        return ForecastResult(
+            data_name=data_name,
+            labels=labels,
+            historical_data=historical_data + [None] * forecast_periods,
+            forecast_data=forecast_chart_data
+        )
+    except Exception as e:
+        print(f"ARIMA model error: {e}")
+        return ForecastResult(data_name=f"Could not forecast '{data_name}'", labels=["Error"], historical_data=[], forecast_data=[])

@@ -1,21 +1,17 @@
-from mcp.server.fastmcp import FastMCP
-from dataclasses import dataclass
+from pydantic import BaseModel, Field
+import os
+from dotenv import load_dotenv
+from langchain_openai import ChatOpenAI
 
-mcp = FastMCP("ClientOnboardingServer")
+load_dotenv()
+llm = ChatOpenAI(base_url="https://api.groq.com/openai/v1", api_key=os.environ.get("GROQ_API_KEY"), model="llama3-8b-8192")
 
-@dataclass
-class OnboardingChecklist:
+class OnboardingChecklist(BaseModel):
     checklist: str
 
-@mcp.tool()
 def generate_onboarding_checklist(client_name: str, service_type: str) -> OnboardingChecklist:
-    """Generates a step-by-step onboarding checklist for a new client."""
-    checklist = (
-        f"**Onboarding Checklist for {client_name} ({service_type} Service)**\n\n"
-        f"- [ ] Welcome email sent.\n"
-        f"- [ ] Schedule kick-off call.\n"
-        f"- [ ] Grant access to project management tool.\n"
-        f"- [ ] Collect necessary documents and assets.\n"
-        f"- [ ] First check-in call completed."
-    )
+    """Creates a detailed onboarding checklist..."""
+    prompt = f"You are a project manager... Create a detailed onboarding checklist for **Client:** {client_name} for our **Service:** {service_type}..."
+    response = llm.invoke(prompt)
+    checklist = f"**Onboarding Checklist for {client_name} ({service_type} Service)**\n\n{response.content}"
     return OnboardingChecklist(checklist=checklist)
