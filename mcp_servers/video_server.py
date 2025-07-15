@@ -1,5 +1,3 @@
-# /Users/adi/AI-tools-servers/mcp_servers/video_server.py
-
 import os
 import uuid
 import logging
@@ -9,8 +7,6 @@ from gtts import gTTS
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 
-# --- Configuration ---
-# All paths are relative to the main project root (AI-TOOLS-SERVERS)
 STATIC_DIR = "static"
 AUDIO_TEMP_PATH = os.path.join(STATIC_DIR, "audio")
 VIDEO_OUTPUT_PATH = os.path.join(STATIC_DIR, "videos")
@@ -30,7 +26,7 @@ def _create_slide_image(text, slide_type="normal", width=1280, height=720):
     if slide_type == "title":
         bg_color, text_color = (46, 52, 64), (216, 222, 233) # Dark Nord Blue
     else:
-        bg_color, text_color = (76, 86, 106), (236, 239, 244) # Nord Gray
+        bg_color, text_color = (76, 86, 106), (236, 239, 244) # Nord Gra
 
     img = Image.new("RGB", (width, height), bg_color)
     draw = ImageDraw.Draw(img)

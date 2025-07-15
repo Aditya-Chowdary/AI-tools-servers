@@ -7,7 +7,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from typing import List, Union
 from fastapi.staticfiles import StaticFiles
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, File, UploadFile
 from langchain_openai import ChatOpenAI
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_core.tools import tool
@@ -18,7 +18,9 @@ from mcp_servers.freelance_server import generate_project_proposal, ProjectPropo
 from mcp_servers.video_server import create_video_from_script, VideoResult
 from mcp_servers.support_server import get_support_answer, SupportResponse
 from mcp_servers.virtual_employee_server import schedule_meeting, MeetingConfirmation
-from mcp_servers.summarizer_server import analyze_and_summarize_transcript, AnalyzedSummary
+from mcp_servers.summarizer_server import analyze_and_summarize_transcript, ContentSummary
+# --- NEW: Import the video processor ---
+from mcp_servers.video_processing import extract_text_from_video
 from mcp_servers.crm_server import draft_follow_up_email, EmailDraft, add_customer_interaction, CrmConfirmation
 from mcp_servers.forecasting_server import forecast_data, ForecastResult
 from mcp_servers.inbox_server import categorize_email, EmailCategory
@@ -114,9 +116,15 @@ def freelance_proposal_tool(client_name: str, project_description: str) -> Proje
     return generate_project_proposal(client_name=client_name, project_description=project_description)
 
 @tool
-def meeting_summarizer_tool(transcript_text: str) -> AnalyzedSummary:
-    """Summarizes a meeting transcript, extracts key points, identifies action items, and analyzes the sentiment."""
+def content_summarizer_tool(transcript_text: str) -> ContentSummary:
+    """
+    Analyzes and summarizes a provided block of text from a meeting or video transcript.
+    It extracts key points, action items, and sentiment. Use this for any summarization request.
+    If the user pastes a large block of text and asks "what is this?" or "summarize this", this is the tool to use.
+    """
+    print(f"Summarizing text of length: {len(transcript_text)}")
     return analyze_and_summarize_transcript(transcript_text=transcript_text)
+
 
 @tool
 def customer_support_tool(customer_query: str) -> SupportResponse:
@@ -140,7 +148,7 @@ def onboarding_bot_tool(client_name: str, service_type: str) -> OnboardingCheckl
 
 ALL_TOOLS = [
     financial_forecasting_tool, crm_follow_up_tool, crm_logging_tool, video_creator_tool,
-    flowchart_agent_tool, freelance_proposal_tool, meeting_summarizer_tool,
+    flowchart_agent_tool, freelance_proposal_tool,content_summarizer_tool,
     customer_support_tool, virtual_employee_tool, inbox_zero_tool, onboarding_bot_tool,
 ]
 
@@ -150,12 +158,13 @@ TOOL_NAME_TO_CONTENT_TYPE = {
     "crm_follow_up_tool": "email",
     "video_creator_tool": "video",
     "flowchart_agent_tool": "mermaid",
-    # All other tools will default to a 'text' response.
+  "content_summarizer_tool": "summary",
 }
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
+UPLOAD_DIR = "temp_uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 @app.on_event("startup")
 async def startup_event():
     global llm_with_tools, llm_general
@@ -163,6 +172,52 @@ async def startup_event():
     llm_with_tools = base_llm.bind_tools(ALL_TOOLS)
     llm_general = base_llm
     print("✅ LLMs initialized successfully.")
+
+    # --- NEW: Add a file upload endpoint ---
+@app.post("/upload_and_summarize/{client_id}")
+async def upload_and_summarize(client_id: str, file: UploadFile = File(...)):
+    """
+    Handles video file uploads. It saves the file, extracts text, summarizes it,
+    and sends the result back to the specific client via WebSocket.
+    """
+    response_payload = {}
+    file_path = os.path.join(UPLOAD_DIR, file.filename)
+    
+    try:
+        # 1. Save the uploaded file to the temp directory
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        # 2. Inform frontend that transcription is starting
+        await manager.send_personal_message(
+            json.dumps({"content_type": "text", "payload": {"content": f"File '{file.filename}' received. Starting transcription (this may take a few moments)..."}}),
+            client_id
+        )
+
+        # 3. Extract text from video (this is a blocking IO operation)
+        transcript_text = await asyncio.to_thread(extract_text_from_video, file_path)
+
+        if "Transcription failed" in transcript_text or not transcript_text.strip():
+             raise Exception(transcript_text or "The video appears to contain no speech.")
+
+        # 4. Summarize the extracted text using the existing tool logic
+        tool_output = content_summarizer_tool.func(transcript_text=transcript_text)
+        payload_data = tool_output.model_dump()
+
+        # 5. Package the response for the frontend widget
+        final_payload = {"intro_text": f"Here is the summary for '{file.filename}':", **payload_data}
+        response_payload = {"content_type": "summary", "payload": final_payload}
+
+    except Exception as e:
+        print(traceback.format_exc())
+        error_message = f"I encountered an error processing your file: {str(e)}"
+        response_payload = {"content_type": "text", "payload": {"content": f"**Error:** {error_message}"}}
+        # Clean up failed file if it exists
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+    await manager.send_personal_message(json.dumps(response_payload), client_id)
+    return {"status": "processing_complete"}
 
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
@@ -210,6 +265,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                         # For certain widgets, we can add introductory text.
                         if content_type == "email": final_payload = {"intro_text": "I've drafted this email for you:", **payload_data}
                         elif content_type == "video": final_payload = {"intro_text": "Video script generation initiated:", **payload_data}
+                        elif content_type == "video_summary": final_payload = {"intro_text": "Here is the summary of the video:", **payload_data}
                         elif content_type == "mermaid": final_payload = {"intro_text": "Here is the generated flowchart:", **payload_data}
                         elif content_type == "text": # For tools that return text, ensure it's in the right format.
                            final_payload = {"content": next(iter(payload_data.values()), str(payload_data))}
