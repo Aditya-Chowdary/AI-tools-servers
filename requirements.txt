@@ -1,17 +1,34 @@
 
-# Web Framework and Server
-fastapi
 uvicorn
 uv
-websockets
+groq
+
+# Core FastAPI and MCP Server Libraries
+fastapi
+uvicorn
+mcp-use[cli]
+fastmcp
 
 # LangChain and AI Model Integration
+langchain
+langgraph
 langchain-openai
-# THIS IS THE CRUCIAL LINE
-mcp-use[cli]
+langchain-groq
+langchain-mcp-adapters
 
-# Environment Variable Management
+# Transcription and Audio Processing
+faster_whisper
+pydub
+av # Required by PyDub for video formats
+vaderSentiment
+speechrecognition
+
+# Environment and Utility
 python-dotenv
-
-# The Groq SDK is often a useful dependency
-groq
+websockets
+scikit-learn
+numpy
+statsmodels
+moviepy
+gtts
+Pillow
