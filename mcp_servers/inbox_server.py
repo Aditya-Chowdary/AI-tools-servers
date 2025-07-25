@@ -5,12 +5,9 @@ import email
 from email.header import decode_header
 from dotenv import load_dotenv
 
-# --- [THE FIX] ---
-# Import BaseModel from the same place as server.py to ensure consistency
-# This guarantees that all Pydantic models will have the .model_dump() method.
 from langchain_core.pydantic_v1 import BaseModel as LangChainBaseModel, Field
 
-# Load environment variables from the .env file
+
 load_dotenv()
 
 # --- Configuration ---

@@ -11,9 +11,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_openai import ChatOpenAI
-from langchain_core.pydantic_v1 import BaseModel, Field
+from pydantic.v1 import BaseModel as LangChainBaseModel, Field
 from langchain_core.tools import tool
 from dotenv import load_dotenv
+
 
 # --- Logic Imports ---
 from mcp_servers.freelance_server import generate_project_proposal, ProjectProposal
