@@ -1,25 +1,21 @@
 services:
   - type: web
-    name: AI-tools-servers
+    name: AI-tools-servers # Or whatever you named your service
     env: python
-    pythonVersion: "3.11" # Or your desired Python version
+
+    # CRITICAL CHANGE: Forcing a stable Python version.
+    # Python 3.13 is too new and causes this library installation error.
+    pythonVersion: "3.11"
     
-    # Tells Render to install the FFMPEG system package
+    # Installs the FFMPEG program on the server's operating system
     systemPackages:
       - name: ffmpeg
 
-    # Tells Render how to build and start your service
+    # Build and Start commands for production
     buildCommand: "pip install -r requirements.txt"
     startCommand: "uvicorn server:app --host 0.0.0.0 --port $PORT"
 
-    # Links your service to the secure environment group you just created
+    # Link to your secure environment group for API keys
+    # Make sure the 'name' here exactly matches the group name in your dashboard
     envVarGroups:
-      - name: ai-tools-secrets # Use the exact name you created in Step 1```
-
-#### Step 3: Commit and Deploy
-
-1.  Save the new, correct content in your `render.yaml` file.
-2.  Commit the file to your Git repository and push the changes.
-3.  Go to your service on Render and click **"Manual Deploy"** > **"Deploy latest commit"**.
-
-Render will now use this file, connect to your secure environment group, install FFMPEG, install your Python packages, and start your server correctly.
+      - name: ai-tools-secrets 
