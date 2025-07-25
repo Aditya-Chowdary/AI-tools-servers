@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: AI-tools-servers
+    env: python
+    pythonVersion: "3.11" # Or your desired Python version
+    
+    # Tells Render to install the FFMPEG system package
+    systemPackages:
+      - name: ffmpeg
+
+    # Tells Render how to build and start your service
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn server:app --host 0.0.0.0 --port $PORT"
+
+    # Links your service to the secure environment group you just created
+    envVarGroups:
+      - name: ai-tools-secrets # Use the exact name you created in Step 1```
+
+#### Step 3: Commit and Deploy
+
+1.  Save the new, correct content in your `render.yaml` file.
+2.  Commit the file to your Git repository and push the changes.
+3.  Go to your service on Render and click **"Manual Deploy"** > **"Deploy latest commit"**.
+
+Render will now use this file, connect to your secure environment group, install FFMPEG, install your Python packages, and start your server correctly.
